@@ -80,16 +80,55 @@ def fetch_real_solar_data(lat, lon):
 # ==========================================
 # 3. واجهة المستخدم (Streamlit Interface)
 # ==========================================
-st.set_page_config(page_title="مختبر الخلايا الشمسية الجغرافي", layout="wide")
+st.set_page_config(page_title="مختبر الخلايا الشمسية الجغرافي", page_icon="☀️", layout="wide")
 
-st.title("☀️ مختبر الخلايا الشمسية التفاعلي (بيانات حقيقية)")
+# --- تحسينات التصميم (CSS المخصص) ---
 st.markdown("""
-هذا النظام يقوم بربط **نموذج فيزيائي رياضي متقدم** ببيانات **الأقمار الصناعية اللحظية** لتمثيل أداء الخلايا الشمسية 
+<style>
+    /* تغيير تنسيق مؤشرات الأداء لتبدو كبطاقات احترافية */
+    div[data-testid="metric-container"] {
+        background-color: #ffffff;
+        border: 1px solid #e0e0e0;
+        padding: 15px 20px;
+        border-radius: 12px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.05);
+        text-align: center;
+    }
+    /* تحسين شكل الفواصل */
+    hr {
+        margin-top: 2em;
+        margin-bottom: 2em;
+        border: 0;
+        border-top: 2px solid #f0f2f6;
+    }
+    /* توسيط النصوص في العناوين */
+    .centered-text {
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# --- عرض الشعارات في الأعلى ---
+col_logo1, col_space, col_logo2 = st.columns([1, 4, 1])
+with col_logo1:
+    st.image("https://phy-lab.com/wp-content/uploads/2026/02/شعار-االجامعة-بدون-خلفيه.png", use_container_width=True)
+with col_logo2:
+    st.image("https://phy-lab.com/wp-content/uploads/2026/02/شعار-الموقع-بدون-خلفيه.png", use_container_width=True)
+
+# --- العنوان الرئيسي ---
+st.markdown("<h1 class='centered-text' style='color: #1E3A8A;'>معمل الخلايا الشمسية التفاعلي - المستوى الأول ☀️</h1>", unsafe_allow_html=True)
+st.markdown("""
+<p class='centered-text' style='color: #555555; font-size: 1.1em;'>
+هذا النظام يقوم بربط <b>نموذج فيزيائي رياضي متقدم</b> ببيانات <b>الأقمار الصناعية اللحظية</b> لتمثيل أداء الخلايا الشمسية 
 في أي موقع جغرافي حول العالم على مدار 24 ساعة، مع مراعاة تأثير الحرارة على الجهد والتيار.
-""")
+</p>
+""", unsafe_allow_html=True)
+
+st.write("---")
 
 # --- القائمة الجانبية ---
-st.sidebar.header("🌍 إعدادات الموقع والجهاز")
+st.sidebar.markdown("<h2 style='text-align: center;'>⚙️ لوحة التحكم</h2>", unsafe_allow_html=True)
+st.sidebar.header("🌍 إعدادات الموقع الجغرافي")
 lat = st.sidebar.number_input("خط العرض (Latitude)", value=24.4672, format="%.4f")
 lon = st.sidebar.number_input("خط الطول (Longitude)", value=39.6024, format="%.4f")
 
@@ -122,10 +161,11 @@ if hours is not None:
 
     df = pd.DataFrame(full_day_results)
 
-    # --- عرض الإحصائيات الحيوية ---
+    # --- عرض الإحصائيات الحيوية (كبطاقات أنيقة) ---
+    st.markdown("### 📊 ملخص الأداء اليومي")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("إجمالي طاقة اليوم", f"{df['Power Out (W)'].sum():.2f} Wh")
+        st.metric("إجمالي طاقة اليوم", f"{df['Power Out (W)'].sum():.2f} Wh", delta_color="normal")
     with col2:
         st.metric("أعلى إشعاع مسجل", f"{df['Irradiance (W/m2)'].max():.0f} W/m²")
     with col3:
@@ -135,40 +175,54 @@ if hours is not None:
         peak_res = hourly_curves_data[peak_hour_idx]
         st.metric("أعلى قدرة لحظية", f"{peak_res['P_max']:.2f} W")
 
+    st.write("---")
+
     # --- الرسوم البيانية ---
-    st.divider()
     tab1, tab2, tab3 = st.tabs(["📈 تحليل الأداء الزمني", "🧪 منحنيات المختبر (I-V)", "📋 جدول البيانات والتحميل"])
 
     with tab1:
+        st.markdown("#### تغير الإشعاع والطاقة خلال 24 ساعة")
         fig_time = go.Figure()
-        fig_time.add_trace(go.Scatter(x=df['Hour'], y=df['Irradiance (W/m2)'], name="الإشعاع (W/m²)", fill='tozeroy', line=dict(color='orange')))
-        fig_time.add_trace(go.Scatter(x=df['Hour'], y=df['Power Out (W)'], name="الطاقة المنتجة (W)", line=dict(color='green', width=3), yaxis="y2"))
+        fig_time.add_trace(go.Scatter(x=df['Hour'], y=df['Irradiance (W/m2)'], name="الإشعاع (W/m²)", fill='tozeroy', line=dict(color='#FFA15A', width=2)))
+        fig_time.add_trace(go.Scatter(x=df['Hour'], y=df['Power Out (W)'], name="الطاقة المنتجة (W)", line=dict(color='#00CC96', width=4), yaxis="y2"))
         fig_time.update_layout(
-            title="تغير الإشعاع والطاقة خلال 24 ساعة",
             xaxis_title="الساعة",
-            yaxis_title="الإشعاع الشمسي",
-            yaxis2=dict(title="الطاقة الكهربائية", overlaying='y', side='right'),
-            hovermode="x unified"
+            yaxis_title="الإشعاع الشمسي (W/m²)",
+            yaxis2=dict(title="الطاقة الكهربائية (W)", overlaying='y', side='right'),
+            hovermode="x unified",
+            margin=dict(l=40, r=40, t=40, b=40),
+            plot_bgcolor='rgba(0,0,0,0)' # خلفية شفافة للرسم
         )
+        # إضافة شبكة خفيفة
+        fig_time.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#F0F0F0')
+        fig_time.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#F0F0F0')
         st.plotly_chart(fig_time, use_container_width=True)
 
     with tab2:
-        col_iv1, col_iv2 = st.columns([1, 2])
+        col_iv1, col_iv2 = st.columns([1, 2.5])
         with col_iv1:
-            st.write("### خصائص النقطة القصوى")
-            st.info(f"الوقت: {peak_hour_idx}:00")
-            st.write(f"**V_mpp:** {peak_res['Vmpp']:.3f} V")
-            st.write(f"**I_mpp:** {peak_res['Impp']:.3f} A")
-            st.write(f"**Fill Factor:** {peak_res['FF']:.3f}")
+            st.markdown("#### خصائص النقطة القصوى (MPP)")
+            st.info(f"**الوقت ذروة الإشعاع:** {peak_hour_idx}:00", icon="⏱️")
+            st.success(f"**V_mpp:** {peak_res['Vmpp']:.3f} V")
+            st.success(f"**I_mpp:** {peak_res['Impp']:.3f} A")
+            st.warning(f"**Fill Factor:** {peak_res['FF']:.3f}")
         with col_iv2:
             fig_iv = go.Figure()
-            fig_iv.add_trace(go.Scatter(x=peak_res['V'], y=peak_res['I'], name="I-V Curve", line=dict(color='blue')))
-            fig_iv.add_trace(go.Scatter(x=[peak_res['Vmpp']], y=[peak_res['Impp']], mode='markers', name='MPP Point', marker=dict(size=12, color='red')))
-            fig_iv.update_layout(title="منحنى التيار والجهد عند ذروة الإشعاع", xaxis_title="الجهد (V)", yaxis_title="التيار (A)")
+            fig_iv.add_trace(go.Scatter(x=peak_res['V'], y=peak_res['I'], name="I-V Curve", line=dict(color='#636EFA', width=3)))
+            fig_iv.add_trace(go.Scatter(x=[peak_res['Vmpp']], y=[peak_res['Impp']], mode='markers', name='MPP Point', marker=dict(size=14, color='#EF553B', symbol='star')))
+            fig_iv.update_layout(
+                title="منحنى التيار والجهد عند ذروة الإشعاع", 
+                xaxis_title="الجهد (V)", 
+                yaxis_title="التيار (A)",
+                plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=40, r=40, t=40, b=40)
+            )
+            fig_iv.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#F0F0F0')
+            fig_iv.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#F0F0F0')
             st.plotly_chart(fig_iv, use_container_width=True)
 
     with tab3:
-        st.write("### سجل البيانات التفصيلي")
+        st.markdown("#### سجل البيانات التفصيلي")
         st.dataframe(df, use_container_width=True)
         
         csv_full = df.to_csv(index=False).encode('utf-8-sig')
@@ -176,7 +230,7 @@ if hours is not None:
         
         st.divider()
         
-        st.write("### استخراج بيانات منحنى (I-V) التفصيلية")
+        st.markdown("#### استخراج بيانات منحنى (I-V) التفصيلية")
         st.write("اختر أي ساعة من اليوم لتحميل الـ 100 نقطة (جهد، تيار، قدرة) المكونة لمنحناها.")
         
         col_select, col_download = st.columns([1, 2])
