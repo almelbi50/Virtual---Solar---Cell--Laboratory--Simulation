@@ -5,34 +5,54 @@ import plotly.graph_objects as go
 import requests
 
 # ==========================================
-# 1. الإعدادات الفيزيائية (النموذج الرياضي)
+# 1. الإعدادات الفيزيائية (النموذج الهندسي المتقدم)
 # ==========================================
-q = 1.602e-19    # شحنة الإلكترون
-k_B = 1.381e-23  # ثابت بولتزمان
+q = 1.602e-19    # شحنة الإلكترون (Coulombs)
+k_B = 1.381e-23  # ثابت بولتزمان (J/K)
 
 def calculate_solar_cell_parameters(G, T_celsius, Isc_ref=5.0, Voc_ref=0.6, area=0.01):
-    """حساب خصائص الخلية بناءً على نموذج الدايود الواحد"""
-    if G <= 1: # استبعاد القيم الضعيفة جداً أو الليل
+    """حساب خصائص الخلية مع تضمين التأثير الحراري الديناميكي"""
+    if G <= 1: 
         return {'P_max': 0, 'Vmpp': 0, 'Impp': 0, 'FF': 0, 'Efficiency': 0, 'V': np.array([0]), 'I': np.array([0]), 'P': np.array([0])}
     
     T_kelvin = T_celsius + 273.15
-    n = 1.2 # معامل المثالية
-    Vt = (n * k_B * T_kelvin) / q # الجهد الحراري
+    n = 1.2 # معامل المثالية (Ideality Factor)
     
-    # تصحيح تيار الدائرة القصيرة بناءً على الإشعاع
-    Isc = Isc_ref * (G / 1000.0)
-    # حساب تيار الإشباع العكسي
-    I_o = Isc / (np.exp(Voc_ref / Vt) - 1)
+    # حساب الجهد الحراري القياسي
+    Vt = (k_B * T_kelvin) / q 
     
-    V = np.linspace(0, Voc_ref, 100)
-    I = Isc - I_o * (np.exp(V / Vt) - 1)
+    # ----------------------------------------
+    # التعديل الجديد: معاملات الحرارة الديناميكية
+    # ----------------------------------------
+    alpha = 0.0005  # معامل حرارة التيار (يزداد التيار قليلاً مع الحرارة)
+    beta = -0.003   # معامل حرارة الجهد (ينخفض الجهد بشدة مع الحرارة)
+    delta_T = T_celsius - 25.0 # فارق الحرارة عن الظروف المعيارية (STC)
+    
+    # تحديث التيار والجهد المرجعي ليتفاعل مع الإشعاع والحرارة
+    Isc_dynamic = Isc_ref * (G / 1000.0) * (1 + alpha * delta_T)
+    Voc_dynamic = Voc_ref * (1 + beta * delta_T)
+    
+    # حماية برمجية لمنع الجهد من أن يصبح سالباً في درجات الحرارة المتطرفة
+    Voc_dynamic = max(Voc_dynamic, 0.01)
+    
+    # ----------------------------------------
+    
+    # حساب تيار الإشباع العكسي بالقيم الديناميكية الجديدة
+    I_o = Isc_dynamic / (np.exp(Voc_dynamic / (n * Vt)) - 1)
+    
+    # معادلة الدايود وتوليد المنحنى
+    V = np.linspace(0, Voc_dynamic, 100)
+    I = Isc_dynamic - I_o * (np.exp(V / (n * Vt)) - 1)
+    
+    # منع التيارات السالبة فيزيائياً
     I = np.maximum(I, 0)
     P = V * I
     
+    # استخراج مؤشرات الأداء
     idx_mpp = np.argmax(P)
     P_max = P[idx_mpp]
     
-    FF = P_max / (Voc_ref * Isc) if (Voc_ref * Isc) > 0 else 0
+    FF = P_max / (Voc_dynamic * Isc_dynamic) if (Voc_dynamic * Isc_dynamic) > 0 else 0
     Efficiency = (P_max / (G * area)) * 100 if G > 0 else 0
     
     return {
@@ -44,9 +64,8 @@ def calculate_solar_cell_parameters(G, T_celsius, Isc_ref=5.0, Voc_ref=0.6, area
 # ==========================================
 # 2. ربط البيانات الجغرافية (Real-time API)
 # ==========================================
-@st.cache_data(ttl=3600) # تحديث البيانات كل ساعة
+@st.cache_data(ttl=3600)
 def fetch_real_solar_data(lat, lon):
-    """جلب بيانات الإشعاع والحرارة الحقيقية بناءً على الموقع"""
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,shortwave_radiation&timezone=auto&forecast_days=1"
     try:
         response = requests.get(url)
@@ -63,35 +82,34 @@ def fetch_real_solar_data(lat, lon):
 # ==========================================
 st.set_page_config(page_title="مختبر الخلايا الشمسية الجغرافي", layout="wide")
 
-# تصميم الهيدر
-st.title("محاكاة الخلايا الشمسية التفاعلي -المستوى الاول ")
+st.title("☀️ مختبر الخلايا الشمسية التفاعلي (بيانات حقيقية)")
 st.markdown("""
-هذا النظام يقوم بربط **نموذج فيزيائي رياضي** ببيانات **الأقمار الصناعية اللحظية** لتمثيل أداء الخلايا الشمسية 
-في أي موقع جغرافي حول العالم على مدار 24 ساعة.
+هذا النظام يقوم بربط **نموذج فيزيائي رياضي متقدم** ببيانات **الأقمار الصناعية اللحظية** لتمثيل أداء الخلايا الشمسية 
+في أي موقع جغرافي حول العالم على مدار 24 ساعة، مع مراعاة تأثير الحرارة على الجهد والتيار.
 """)
 
 # --- القائمة الجانبية ---
 st.sidebar.header("🌍 إعدادات الموقع والجهاز")
-lat = st.sidebar.number_input("خط العرض (Latitude)", value=24.4672, format="%.4f", help="الموقع الافتراضي: المدينة المنورة")
+lat = st.sidebar.number_input("خط العرض (Latitude)", value=24.4672, format="%.4f")
 lon = st.sidebar.number_input("خط الطول (Longitude)", value=39.6024, format="%.4f")
 
 st.sidebar.divider()
 st.sidebar.subheader("🔬 خصائص الخلية الشمسية")
 area = st.sidebar.slider("مساحة الخلية (m²)", 0.001, 0.1, 0.01, format="%.3f")
-cell_temp_offset = st.sidebar.slider("إزاحة حرارة الخلية (°C)", 0, 30, 15, help="الخلية تكون عادة أحر من الجو المحيط")
+cell_temp_offset = st.sidebar.slider("إزاحة حرارة الخلية (°C)", 0, 30, 15)
 
 # --- معالجة البيانات ---
 hours, G_values, T_env_values = fetch_real_solar_data(lat, lon)
 
 if hours is not None:
     full_day_results = []
-    hourly_curves_data = {} # تخزين بيانات المنحنيات لكل ساعة لاستخدامها في التحميل
+    hourly_curves_data = {} 
     
     for h, g, t_env in zip(hours, G_values, T_env_values):
-        t_cell = t_env + cell_temp_offset # تقدير حرارة الخلية الفعلية
+        t_cell = t_env + cell_temp_offset 
         res = calculate_solar_cell_parameters(g, t_cell, area=area)
         
-        hourly_curves_data[h] = res # حفظ النقاط الـ 100 لهذه الساعة
+        hourly_curves_data[h] = res 
         
         full_day_results.append({
             'Hour': h,
@@ -113,7 +131,6 @@ if hours is not None:
     with col3:
         st.metric("متوسط الكفاءة", f"{df[df['Power Out (W)']>0]['Efficiency (%)'].mean():.2f} %")
     with col4:
-        # استخراج منحنى I-V وقت الظهيرة (ساعة الذروة)
         peak_hour_idx = df['Irradiance (W/m2)'].idxmax()
         peak_res = hourly_curves_data[peak_hour_idx]
         st.metric("أعلى قدرة لحظية", f"{peak_res['P_max']:.2f} W")
@@ -154,13 +171,11 @@ if hours is not None:
         st.write("### سجل البيانات التفصيلي")
         st.dataframe(df, use_container_width=True)
         
-        # 1. زر تحميل ملخص اليوم كاملاً
         csv_full = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("📥 تحميل بيانات اليوم كاملة (CSV)", csv_full, "solar_lab_daily_summary.csv", "text/csv")
         
         st.divider()
         
-        # 2. الإضافة الجديدة: تحميل نقاط منحنى I-V التفصيلية
         st.write("### استخراج بيانات منحنى (I-V) التفصيلية")
         st.write("اختر أي ساعة من اليوم لتحميل الـ 100 نقطة (جهد، تيار، قدرة) المكونة لمنحناها.")
         
@@ -169,7 +184,7 @@ if hours is not None:
             selected_hour = st.selectbox("اختر الساعة:", options=hours, index=int(peak_hour_idx))
             
         with col_download:
-            st.write("") # لضبط المحاذاة العمودية
+            st.write("") 
             st.write("")
             curve_data = hourly_curves_data[selected_hour]
             if curve_data['P_max'] > 0:
